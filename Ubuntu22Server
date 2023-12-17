@@ -1,0 +1,16 @@
+##template
+
+wget https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img	
+apt update
+apt install -y libguestfs-tools
+virt-customize --install qemu-guest-agent -a debian-11-generic-amd64.qcow2
+qm create 9001 --name UbuntuServer22-template --memory 1024 --net0 virtio,bridge=vmbr0
+qm importdisk 9001 jammy-server-cloudimg-amd64.img local-lvm
+qm set 9001 --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-9001-disk-0
+qm set 9001 --ide2 local-lvm:cloudinit
+qm set 9001 --boot c --bootdisk scsi0
+qm set 9001 --serial0 socket --vga serial0
+qm set 9001 --ipconfig0 ip=dhcp
+qm resize 9001 scsi0 50G
+qm template 9001
+rm jammy-server-cloudimg-amd64.img
