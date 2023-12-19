@@ -1,0 +1,46 @@
+###for use with Proxmox v8. Don't forget to go to datacenter->storage->local and check off "snippets". Yaml files will be stored here to be referenced.
+
+#cloud-config
+hostname: ubuntu20
+manage_etc_hosts: true
+user: user
+ssh_authorized_keys:
+  - ssh-rsa AAAAKEYHEEEEREEEE= user@client
+password: password
+chpasswd:
+  expire: False
+users:
+  - default
+package_upgrade: true
+package_reboot_if_required: true
+locale: en_GB.UTF-8
+timezone: Europe/Berlin
+runcmd:
+  - sed -i 's/[#]*Port 22/Port 9726/g' /etc/ssh/sshd_config
+  - sed -i 's/[#]*PermitRootLogin yes/PermitRootLogin prohibit-password/g' /etc/ssh/sshd_config
+  - sed -i 's/[#]*PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config
+  - sed -i 's/#HostKey \/etc\/ssh\/ssh_host_ed25519_key/HostKey \/etc\/ssh\/ssh_host_ed25519_key/g' /etc/ssh/sshd_config
+  - systemctl reload ssh
+packages:
+  - qemu-guest-agent
+  - docker.io
+
+###then run 
+
+wget https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img	
+apt update
+apt install -y libguestfs-tools
+virt-customize --install qemu-guest-agent,net-tools -a jammy-server-cloudimg-amd64.img
+qm create 9001 --name UbuntuServer22-template --memory 1024 --net0 virtio,bridge=vmbr0
+qm importdisk 9001 jammy-server-cloudimg-amd64.img local-lvm
+qm set 9001 --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-9001-disk-0
+qm set 9001 --ide2 local-lvm:cloudinit
+qm set 9001 --boot c --bootdisk scsi0
+qm set 9001 --serial0 socket --vga serial0
+qm set 9001 --ipconfig0 ip=dhcp
+qm resize 9001 scsi0 50G
+qm template 9001
+rm jammy-server-cloudimg-amd64.img
+qm clone 9001 9002
+qm set 9002 --cicustom "user=local:snippets/test.yml"
+qm start 9002
